@@ -6,7 +6,7 @@ From `man 5 proc`:
   This file shows current file locks (flock(2) and fcntl(2)) and leases (fcntl(2)).
 
   An example of the content shown in this file is the following:
-
+      0  1      2         3     4    5             6   7
       1: POSIX  ADVISORY  READ  5433 08:01:7864448 128 128
       2: FLOCK  ADVISORY  WRITE 2001 08:01:7864554 0 EOF
       3: FLOCK  ADVISORY  WRITE 1568 00:2f:32388 0 EOF
