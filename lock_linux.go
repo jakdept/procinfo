@@ -5,6 +5,9 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
+	"syscall"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -38,14 +41,124 @@ const (
 	ProcLockColByteEnd
 )
 
-func GetAllLocks() ([]Lock, error) {
+var FileLocks = fileLocksType{
+	l:           sync.RWMutex{},
+	clearSignal: make(chan struct{}),
+	dedupWait:   make(chan struct{}),
+	delay:       time.Millisecond * 200,
+}
+
+type fileLocksType struct {
+	locks       *[]Lock
+	l           sync.RWMutex
+	delay       time.Duration
+	clearSignal chan struct{}
+	dedupWait   chan struct{}
+}
+
+func (l *fileLocksType) waitForSignal() {
+	go func() {
+		select {
+		// multiple instances of this func collapse into one
+		// if two goroutines end up in this func, the first two cases will link up
+		case l.dedupWait <- struct{}{}:
+			// do nothing here, just kill this thread
+			return
+		case <-l.dedupWait:
+			// relaunch this thread
+			l.waitForSignal()
+			return
+		case <-l.clearSignal:
+			// you got the signal to cancel, so do it
+			l.l.Lock()
+			defer l.l.Unlock()
+			l.locks = nil
+		}
+	}()
+}
+
+func (l *fileLocksType) isSet() bool {
+	l.l.RLock()
+	defer l.l.RUnlock()
+	return l.locks != nil
+}
+
+func (l *fileLocksType) waitClear() {
+	defer l.Clear()
+	time.Sleep(l.delay) // wait
+}
+
+// external clear function - see waitForSignal() for the real one
+func (l *fileLocksType) Clear() {
+	l.waitForSignal() // make sure there's a waiting cancel thread
+	l.clearSignal <- struct{}{}
+}
+
+func (l *fileLocksType) SetExpirationAndClear(t time.Duration) {
+	l.delay = t
+	l.Clear()
+}
+
+func (l *fileLocksType) GetAll() ([]Lock, error) {
+	if err := l.populateIfNotSet(); err != nil {
+		return []Lock{}, err
+	}
+
+	l.l.RLock()
+	defer l.l.RUnlock()
+	return *l.locks, nil
+}
+
+func (l *fileLocksType) CheckInode(inodeNum uint64) ([]Process, error) {
+	if err := l.populateIfNotSet(); err != nil {
+		return []Process{}, err
+	}
+
+	l.l.RLock()
+	defer l.l.RUnlock()
+
+	var processes []Process
+	for _, eachLock := range *l.locks {
+		if eachLock.Inode == inodeNum {
+			processes = append(processes, getProcessByPid(eachLock.PID))
+		}
+	}
+	return processes, nil
+}
+
+func (l *fileLocksType) CheckFileInfo(fileinfo os.FileInfo) ([]Process, error) {
+	// #todo# check and make sure this will always assert?
+	return l.CheckInode(fileinfo.Sys().(syscall.Stat_t).Ino)
+}
+
+func (l *fileLocksType) CheckFilePath(path string) ([]Process, error) {
+	// #todo# check and make sure this will always assert?
+	if finfo, err := os.Stat(path); err != nil {
+		return []Process{}, err
+	} else {
+		return l.CheckFileInfo(finfo)
+	}
+}
+
+func (l *fileLocksType) populateIfNotSet() error {
+	if !l.isSet() {
+		if err := l.populate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (l *fileLocksType) populate() error {
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	// open /proc/locks for reading
 	f, err := os.Open(ProcLock)
 	if err != nil && !os.IsNotExist(err) {
-		return []Lock{}, ErrPermissionDenied
+		return ErrPermissionDenied
 	} else if err != nil {
-		return []Lock{}, errors.Wrapf(err, "could not read %s", ProcLock)
+		return errors.Wrapf(err, "could not read %s", ProcLock)
 	}
 	defer f.Close()
 
@@ -109,7 +222,12 @@ func GetAllLocks() ([]Lock, error) {
 	}
 
 	if err = s.Err(); err != nil {
-		return []Lock{}, err
+		return err
 	}
-	return locks, nil
+
+	// don't actually set these until you know you're setting it
+	defer l.waitForSignal()
+	defer l.waitClear()
+	l.locks = &locks
+	return nil
 }
