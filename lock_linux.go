@@ -143,7 +143,7 @@ func (l *fileLocksType) CheckFilePath(path string) ([]Process, error) {
 }
 
 func (l *fileLocksType) populate() error {
-	if l.isSet {
+	if l.isSet() {
 		return nil
 	}
 
