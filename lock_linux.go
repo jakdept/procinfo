@@ -51,6 +51,7 @@ var FileLocks = fileLocksType{
 type fileLocksType struct {
 	locks       *[]Lock
 	l           sync.RWMutex
+	t           time.Timer
 	delay       time.Duration
 	clearSignal chan struct{}
 	dedupWait   chan struct{}
@@ -58,9 +59,9 @@ type fileLocksType struct {
 
 func (l *fileLocksType) waitForSignal() {
 	go func() {
-		select {
 		// multiple instances of this func collapse into one
 		// if two goroutines end up in this func, the first two cases will link up
+		select {
 		case l.dedupWait <- struct{}{}:
 			// do nothing here, just kill this thread
 			return
@@ -68,30 +69,31 @@ func (l *fileLocksType) waitForSignal() {
 			// relaunch this thread
 			l.waitForSignal()
 			return
+		case <-l.t.C:
+			// the timer fired
 		case <-l.clearSignal:
+			l.t.Stop()
 			// you got the signal to cancel, so do it
-			l.l.Lock()
-			defer l.l.Unlock()
-			l.locks = nil
 		}
+		l.l.Lock()
+		defer l.l.Unlock()
+		l.locks = nil
 	}()
+}
+
+// external clear function - see waitForSignal() for the real one
+func (l *fileLocksType) Clear() {
+	// use a select with default so it falls through if needed
+	select {
+	case l.clearSignal <- struct{}{}:
+	default:
+	}
 }
 
 func (l *fileLocksType) isSet() bool {
 	l.l.RLock()
 	defer l.l.RUnlock()
 	return l.locks != nil
-}
-
-func (l *fileLocksType) waitClear() {
-	defer l.Clear()
-	time.Sleep(l.delay) // wait
-}
-
-// external clear function - see waitForSignal() for the real one
-func (l *fileLocksType) Clear() {
-	l.waitForSignal() // make sure there's a waiting cancel thread
-	l.clearSignal <- struct{}{}
 }
 
 func (l *fileLocksType) SetExpirationAndClear(t time.Duration) {
@@ -140,25 +142,34 @@ func (l *fileLocksType) CheckFilePath(path string) ([]Process, error) {
 	}
 }
 
-func (l *fileLocksType) populateIfNotSet() error {
-	if !l.isSet() {
-		if err := l.populate(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (l *fileLocksType) populate() error {
+	if l.isSet {
+		return nil
+	}
+
 	l.l.Lock()
 	defer l.l.Unlock()
 
+	locks, err := processProcLock()
+	if err != nil {
+		return err
+	}
+
+	// don't actually set these until you know you're setting it
+	defer l.waitForSignal()
+	defer l.t.Reset(l.delay)
+
+	l.locks = &locks
+	return nil
+}
+
+func processProcLock() ([]Lock, error) {
 	// open /proc/locks for reading
 	f, err := os.Open(ProcLock)
 	if err != nil && !os.IsNotExist(err) {
-		return ErrPermissionDenied
+		return []Lock{}, ErrPermissionDenied
 	} else if err != nil {
-		return errors.Wrapf(err, "could not read %s", ProcLock)
+		return []Lock{{}, errors.Wrapf(err, "could not read %s", ProcLock)
 	}
 	defer f.Close()
 
@@ -222,12 +233,7 @@ func (l *fileLocksType) populate() error {
 	}
 
 	if err = s.Err(); err != nil {
-		return err
+		return []Lock{}, err
 	}
-
-	// don't actually set these until you know you're setting it
-	defer l.waitForSignal()
-	defer l.waitClear()
-	l.locks = &locks
-	return nil
+	return locks, nil
 }
