@@ -142,5 +142,5 @@ func getProcessByPid(pid uint32) Process {
 	if err = proc.readCmdline(); err != nil {
 		return Process{}
 	}
-	return proc, nil
+	return proc
 }
