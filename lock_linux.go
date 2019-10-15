@@ -102,7 +102,7 @@ func (l *fileLocksType) SetExpirationAndClear(t time.Duration) {
 }
 
 func (l *fileLocksType) GetAll() ([]Lock, error) {
-	if err := l.populateIfNotSet(); err != nil {
+	if err := l.load(); err != nil {
 		return []Lock{}, err
 	}
 
@@ -112,7 +112,7 @@ func (l *fileLocksType) GetAll() ([]Lock, error) {
 }
 
 func (l *fileLocksType) CheckInode(inodeNum uint64) ([]Process, error) {
-	if err := l.populateIfNotSet(); err != nil {
+	if err := l.load(); err != nil {
 		return []Process{}, err
 	}
 
@@ -142,7 +142,7 @@ func (l *fileLocksType) CheckFilePath(path string) ([]Process, error) {
 	}
 }
 
-func (l *fileLocksType) populate() error {
+func (l *fileLocksType) load() error {
 	if l.isSet() {
 		return nil
 	}
@@ -150,7 +150,7 @@ func (l *fileLocksType) populate() error {
 	l.l.Lock()
 	defer l.l.Unlock()
 
-	locks, err := processProcLock()
+	locks, err := populate()
 	if err != nil {
 		return err
 	}
@@ -163,13 +163,13 @@ func (l *fileLocksType) populate() error {
 	return nil
 }
 
-func processProcLock() ([]Lock, error) {
+func populate() ([]Lock, error) {
 	// open /proc/locks for reading
 	f, err := os.Open(ProcLock)
 	if err != nil && !os.IsNotExist(err) {
 		return []Lock{}, ErrPermissionDenied
 	} else if err != nil {
-		return []Lock{{}, errors.Wrapf(err, "could not read %s", ProcLock)
+		return []Lock{}, errors.Wrapf(err, "could not read %s", ProcLock)
 	}
 	defer f.Close()
 
