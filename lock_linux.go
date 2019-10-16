@@ -128,11 +128,6 @@ func (l *fileLocksType) CheckInode(inodeNum uint64) ([]Process, error) {
 	return processes, nil
 }
 
-func (l *fileLocksType) CheckFileInfo(fileinfo os.FileInfo) ([]Process, error) {
-	// #todo# check and make sure this will always assert?
-	return l.CheckInode(fileinfo.Sys().(syscall.Stat_t).Ino)
-}
-
 func (l *fileLocksType) CheckFilePath(path string) ([]Process, error) {
 	// #todo# check and make sure this will always assert?
 	if finfo, err := os.Stat(path); err != nil {
@@ -140,6 +135,11 @@ func (l *fileLocksType) CheckFilePath(path string) ([]Process, error) {
 	} else {
 		return l.CheckFileInfo(finfo)
 	}
+}
+
+func (l *fileLocksType) CheckFileInfo(fileinfo os.FileInfo) ([]Process, error) {
+	// #todo# check and make sure this will always assert?
+	return l.CheckInode(fileinfo.Sys().(syscall.Stat_t).Ino)
 }
 
 func (l *fileLocksType) load() error {
