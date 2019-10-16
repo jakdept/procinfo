@@ -1,0 +1,13 @@
+(procinfo.Process) {
+ Pid: (uint32) 0,
+ PPid: (uint32) 0,
+ OriginalName: (string) "",
+ State: (int32) 0,
+ UserTime: (uint64) 0,
+ KernelTime: (uint64) 0,
+ Nice: (uint8) 0,
+ MemoryUsage: (uint64) 0,
+ Cmdline: ([]string) <nil>,
+ Env: ([]string) <nil>,
+ Cwd: (string) ""
+}

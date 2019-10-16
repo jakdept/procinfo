@@ -42,24 +42,37 @@ const (
 	ProcStateParked       = 'P'
 )
 
-// nolint position           1   2   3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
-const FmtLinuxProcPidStat = "%d (%s) %c %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d" // nolint
-var FmtProcStatFile = "/proc/%d/stat"
+var testPrefix = ""
+
+// position             1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18
+const FmtProcPidStat = "%d %s %c %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d"
+
+// func init() {
+// 	// position        1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17
+// 	FmtProcPidStat += "%d %s %c %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d"
+// 	// position        18 19 20 21 22 23 24 25
+// 	FmtProcPidStat += "%d %d %d %d %d %d %d %d"
+// 	// // position        18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34
+// 	// FmtProcPidStat += "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d "
+// 	// // position        35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52
+// 	// FmtProcPidStat += "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d"
+// }
+
+const FmtProcStatFile = "/proc/%d/stat"
 
 func (proc *Process) readStat() error {
-	f, err := os.Open(fmt.Sprintf(FmtProcStatFile, proc.Pid))
+	f, err := os.Open(fmt.Sprintf(testPrefix+FmtProcStatFile, proc.Pid))
 	if err != nil && !os.IsNotExist(err) {
 		return ErrPermissionDenied
 	} else if err != nil {
 		return errors.Wrapf(err, "could not read %s", ProcLock)
 	}
-	if _, err = fmt.Fscanf(f, FmtLinuxProcPidStat,
-		&proc.Pid,
-		&proc.OriginalName,
-		&proc.State,
-		&proc.PPid,
-		new(int), // 5
-		new(int),
+	var procname string
+	if _, err = fmt.Fscanf(f, FmtProcPidStat,
+		&proc.Pid,   // 1
+		&procname,   // 2
+		&proc.State, // 3
+		&proc.PPid,  // 4
 		new(int),
 		new(int),
 		new(int),
@@ -72,22 +85,18 @@ func (proc *Process) readStat() error {
 		&proc.KernelTime, new(int), // 16
 		new(int),
 		&proc.Nice, // 18
-		new(int),
-		new(int),
-		new(int),
-		new(int),
-		new(int),
-		&proc.MemoryUsage, // 24
 	); err != nil {
 		return err
 	}
+	proc.OriginalName = strings.TrimSuffix(strings.TrimPrefix(procname, "("), ")")
+
 	return nil
 }
 
-var FmtProcCmdlineFile = "/proc/%d/cmdline"
+const FmtProcCmdlineFile = "/proc/%d/cmdline"
 
 func (proc *Process) readCmdline() error {
-	filepath := fmt.Sprintf(FmtProcCmdlineFile, proc.Pid)
+	filepath := fmt.Sprintf(testPrefix+FmtProcCmdlineFile, proc.Pid)
 	b, err := ioutil.ReadFile(filepath)
 	if err != nil && !os.IsNotExist(err) {
 		return ErrPermissionDenied
@@ -98,10 +107,10 @@ func (proc *Process) readCmdline() error {
 	return nil
 }
 
-var FmtProcEnvFile = "/proc/%d/environ"
+const FmtProcEnvFile = "/proc/%d/environ"
 
 func (proc *Process) readEnv() error {
-	filepath := fmt.Sprintf(FmtProcEnvFile, proc.Pid)
+	filepath := fmt.Sprintf(testPrefix+FmtProcEnvFile, proc.Pid)
 	b, err := ioutil.ReadFile(filepath)
 	if err != nil && !os.IsNotExist(err) {
 		return ErrPermissionDenied
@@ -112,14 +121,15 @@ func (proc *Process) readEnv() error {
 	return nil
 }
 
-var FmtProcCwdFile = "/proc/%d/cwd"
+const FmtProcCwdFile = "/proc/%d/cwd"
 
 func (proc *Process) readCwd() error {
-	link, err := os.Readlink(fmt.Sprintf(FmtProcCmdlineFile, proc.Pid))
+	filepath := fmt.Sprintf(testPrefix+FmtProcCwdFile, proc.Pid)
+	link, err := os.Readlink(filepath)
 	if err != nil && !os.IsNotExist(err) {
 		return ErrPermissionDenied
 	} else if err != nil {
-		return errors.Wrapf(err, "could not read %s", ProcLock)
+		return errors.Wrapf(err, "could not read %s", filepath)
 	}
 	proc.Cwd = link
 	return nil
