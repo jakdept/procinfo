@@ -2,9 +2,8 @@ package procinfo
 
 import (
 	"bufio"
+	"fmt"
 	"os"
-	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -163,6 +162,8 @@ func (l *fileLocksType) load() error {
 	return nil
 }
 
+const FmtProcLocks = "%d: %s %s %s %d %x:%x:%d"
+
 func populate() ([]Lock, error) {
 	// open /proc/locks for reading
 	f, err := os.Open(testPrefix + ProcLock)
@@ -175,61 +176,33 @@ func populate() ([]Lock, error) {
 
 	// set up a few vars to be reused
 	var locks []Lock
-	var fields []string
-	var newLock Lock
-	var tempInt int
+	var lockType string
+	var lockExclusive string
 	s := bufio.NewScanner(f)
 
 	// it would be nice  to do something other than a scanner, but idk protobuf
 	// and fmt.Scanf requires a specific spacing - not present.
 	for s.Scan() {
-		fields = strings.Fields(s.Text())
+		var newLock Lock
+		fmt.Sscanf(s.Text(), FmtProcLocks,
+			&newLock.Priority,
+			&lockType,
+			new(string),
+			&lockExclusive,
+			&newLock.PID,
+			&newLock.DevMajor,
+			&newLock.DevMinor,
+			&newLock.Inode,
+		)
 
-		// determine the priority of the lock (lowest priority wins)
-		tempInt, err = strconv.Atoi(strings.TrimRight(fields[ProcLockColPriority], ":"))
-		if err != nil {
-			continue
-		}
-		newLock.Priority = uint32(tempInt)
-
-		switch fields[ProcLockColType] {
-		case "POSIX": // POSIX is the only byte-range lock type on Linux
+		if lockType == "POSIX" {
 			newLock.ByteRange = true
-		default:
-			newLock.ByteRange = false
 		}
 
-		switch fields[ProcLockColExclusive] {
-		case "WRITE":
+		if lockExclusive == "WRITE" {
 			newLock.Exclusive = true
-		default:
-			newLock.Exclusive = false
 		}
-
-		tempInt, err = strconv.Atoi(fields[ProcLockColPID])
-		if err != nil {
-			continue
-		}
-		newLock.PID = uint32(tempInt)
-
-		fields = strings.Split(fields[ProcLockColInode], ":")
-		tempInt, err = strconv.Atoi(fields[0])
-		if err != nil {
-			continue
-		}
-		newLock.DevMajor = uint16(tempInt)
-
-		tempInt, err = strconv.Atoi(fields[1])
-		if err != nil {
-			continue
-		}
-		newLock.DevMinor = uint16(tempInt)
-
-		tempInt, err = strconv.Atoi(fields[1])
-		if err != nil {
-			continue
-		}
-		newLock.Inode = uint64(tempInt)
+		locks = append(locks, newLock)
 	}
 
 	if err = s.Err(); err != nil {
