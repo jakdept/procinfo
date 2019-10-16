@@ -135,7 +135,7 @@ func (proc *Process) readCwd() error {
 	return nil
 }
 
-func getProcessByPid(pid uint32) Process {
+func GetProcessByPid(pid uint32) Process {
 	proc := Process{
 		Pid: pid,
 	}

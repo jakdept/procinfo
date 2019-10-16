@@ -122,7 +122,7 @@ func (l *fileLocksType) CheckInode(inodeNum uint64) ([]Process, error) {
 	var processes []Process
 	for _, eachLock := range *l.locks {
 		if eachLock.Inode == inodeNum {
-			processes = append(processes, getProcessByPid(eachLock.PID))
+			processes = append(processes, GetProcessByPid(eachLock.PID))
 		}
 	}
 	return processes, nil

@@ -82,7 +82,7 @@ func TestReadEnv(t *testing.T) {
 func TestReadPid(t *testing.T) {
 	for id, expected := range Testdata_Process {
 		t.Run(fmt.Sprintf("%s %d", t.Name(), id), func(t *testing.T) {
-			testProc := getProcessByPid(expected.Pid)
+			testProc := GetProcessByPid(expected.Pid)
 			assert.Equal(t, expected, testProc)
 		})
 	}
