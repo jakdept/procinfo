@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -50,7 +51,7 @@ var FileLocks = fileLocksType{
 type fileLocksType struct {
 	locks       *[]Lock
 	l           sync.RWMutex
-	t           time.Timer
+	t           *time.Timer
 	delay       time.Duration
 	clearSignal chan struct{}
 	dedupWait   chan struct{}
@@ -156,6 +157,9 @@ func (l *fileLocksType) load() error {
 
 	// don't actually set these until you know you're setting it
 	defer l.waitForSignal()
+	if l.t == nil {
+		l.t = time.NewTimer(l.delay)
+	}
 	defer l.t.Reset(l.delay)
 
 	l.locks = &locks
@@ -195,7 +199,7 @@ func populate() ([]Lock, error) {
 			&newLock.Inode,
 		)
 
-		if lockType == "POSIX" {
+		if lockType == "POSIX" && !strings.HasSuffix(s.Text(), "EOF") {
 			newLock.ByteRange = true
 		}
 

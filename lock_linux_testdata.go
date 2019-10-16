@@ -25,7 +25,7 @@ var Testdata_Lock = []Lock{
 		Exclusive: true,
 		PID:       8819,
 		DevMajor:  0xfd,
-		DevMinor:  0x17,
-		Inode:     810,
+		DevMinor:  0x01,
+		Inode:     23600664,
 	},
 }
