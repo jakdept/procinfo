@@ -14,7 +14,7 @@ func init() {
 }
 
 func TestMain(m *testing.M) {
-	testPrefix = "testdata/fixtures/"
+	testPrefix = "testdata/fixtures"
 	defer func() {
 		testPrefix = ""
 	}()

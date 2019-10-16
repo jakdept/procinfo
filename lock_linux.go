@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-var (
+const (
 	ProcLock = "/proc/locks"
 )
 
@@ -165,7 +165,7 @@ func (l *fileLocksType) load() error {
 
 func populate() ([]Lock, error) {
 	// open /proc/locks for reading
-	f, err := os.Open(ProcLock)
+	f, err := os.Open(testPrefix + ProcLock)
 	if err != nil && !os.IsNotExist(err) {
 		return []Lock{}, ErrPermissionDenied
 	} else if err != nil {
