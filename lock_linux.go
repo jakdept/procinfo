@@ -139,7 +139,7 @@ func (l *fileLocksType) CheckFilePath(path string) ([]Process, error) {
 
 func (l *fileLocksType) CheckFileInfo(fileinfo os.FileInfo) ([]Process, error) {
 	// #todo# check and make sure this will always assert?
-	return l.CheckInode(fileinfo.Sys().(syscall.Stat_t).Ino)
+	return l.CheckInode(fileinfo.Sys().(*syscall.Stat_t).Ino)
 }
 
 func (l *fileLocksType) load() error {
