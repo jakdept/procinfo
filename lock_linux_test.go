@@ -22,3 +22,8 @@ func TestCheckInode(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckFilePath(t *testing.T) {
+	_, err := FileLocks.CheckFilePath("testdata/fixtures/proc/locks")
+	assert.NoError(t, err)
+}
