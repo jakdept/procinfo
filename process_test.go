@@ -7,13 +7,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/sebdah/goldie"
 	"github.com/stretchr/testify/assert"
 )
-
-func init() {
-	goldie.FixtureDir = "testdata/golden"
-}
 
 func TestMain(m *testing.M) {
 	testPrefix = "testdata/fixtures"
