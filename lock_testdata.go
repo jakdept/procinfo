@@ -1,5 +1,7 @@
 package procinfo
 
+// +build linux darwin
+
 var Testdata_Lock = []Lock{
 	Lock{
 		Priority:  41,

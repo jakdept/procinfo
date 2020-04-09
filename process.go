@@ -1,5 +1,7 @@
 package procinfo
 
+// +build linux darwin
+
 import (
 	"fmt"
 	"io/ioutil"

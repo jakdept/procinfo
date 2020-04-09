@@ -1,5 +1,7 @@
 package procinfo
 
+// +build linux darwin
+
 var Testdata_Process = []Process{
 	{
 		Pid:          5623,
